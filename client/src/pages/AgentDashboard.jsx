@@ -13,7 +13,7 @@ export default function AgentDashboard() {
 
   async function fetchSessions() {
     try {
-      const res = await axios.get('http://localhost:3000/api/sessions', { headers })
+      const res = await axios.get('https://atomquest-video.onrender.com/api/sessions', { headers })
       setSessions(res.data)
     } catch (err) { console.error(err) }
   }
@@ -21,7 +21,7 @@ export default function AgentDashboard() {
   async function createSession() {
     setLoading(true)
     try {
-      const res = await axios.post('http://localhost:3000/api/sessions', {}, { headers })
+      const res = await axios.post('https://atomquest-video.onrender.com/api/sessions', {}, { headers })
       setSessions(prev => [res.data, ...prev])
     } catch (err) { console.error(err) }
     finally { setLoading(false) }

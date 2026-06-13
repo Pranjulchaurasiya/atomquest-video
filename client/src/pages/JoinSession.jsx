@@ -16,7 +16,7 @@ export default function JoinSession() {
 
   async function joinSession(inviteToken) {
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/customer-join', { inviteToken })
+      const res = await axios.post('https://atomquest-video.onrender.com/api/auth/customer-join', { inviteToken })
       localStorage.setItem('token', res.data.token)
       localStorage.setItem('role', res.data.role)
       localStorage.setItem('sessionId', res.data.sessionId)

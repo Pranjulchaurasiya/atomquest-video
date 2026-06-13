@@ -16,14 +16,14 @@ export default function AdminDashboard() {
 
   async function fetchAll() {
     try {
-      const res = await axios.get('http://localhost:3000/api/sessions', { headers })
+      const res = await axios.get('https://atomquest-video.onrender.com/api/sessions', { headers })
       setSessions(res.data)
     } catch (err) { console.error(err) }
   }
 
   async function endSession(id) {
     try {
-      await axios.post(`http://localhost:3000/api/sessions/${id}/end`, {}, { headers })
+      await axios.post(`https://atomquest-video.onrender.com/api/sessions/${id}/end`, {}, { headers })
       fetchAll()
     } catch (err) { console.error(err) }
   }
@@ -62,7 +62,7 @@ export default function AdminDashboard() {
             {s.status} | Events: {s.events?.length || 0} | Chat: {s.chat?.length || 0}
           </p>
           {s.recordingUrl && (
-            <a href={`http://localhost:3000${s.recordingUrl}`} style={{ fontSize: 12, color: '#4f46e5' }}>
+            <a href={`https://atomquest-video.onrender.com${s.recordingUrl}`} style={{ fontSize: 12, color: '#4f46e5' }}>
               Download Recording
             </a>
           )}

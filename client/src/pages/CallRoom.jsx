@@ -4,7 +4,7 @@ import { io } from 'socket.io-client'
 import * as mediasoupClient from 'mediasoup-client'
 import axios from 'axios'
 
-const SOCKET_URL = 'http://localhost:3000'
+const SOCKET_URL = 'https://atomquest-video.onrender.com'
 
 export default function CallRoom() {
   const { sessionId } = useParams()
@@ -242,7 +242,7 @@ export default function CallRoom() {
     if (role !== 'agent') return
     try {
       await axios.post(
-        `http://localhost:3000/api/sessions/${sessionId}/end`,
+        `https://atomquest-video.onrender.com/api/sessions/${sessionId}/end`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       )

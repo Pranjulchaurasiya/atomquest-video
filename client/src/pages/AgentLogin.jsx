@@ -13,7 +13,7 @@ export default function AgentLogin() {
     setLoading(true)
     setError('')
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/agent-login', { password })
+      const res = await axios.post('https://atomquest-video.onrender.com/api/auth/agent-login', { password })
       localStorage.setItem('token', res.data.token)
       localStorage.setItem('role', res.data.role)
       navigate('/dashboard')
