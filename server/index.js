@@ -91,7 +91,7 @@ app.post('/api/sessions', verifyToken, agentOnly, (req, res) => {
     createdAt: new Date(),
     status: 'waiting',
     inviteToken,
-    inviteLink: `http://localhost:5173/join?token=${inviteToken}`,
+    inviteLink: `https://atomquest-video-two.vercel.app/join?token=${inviteToken}`,
     events: [],
     chat: []
   };
