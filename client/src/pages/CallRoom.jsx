@@ -26,6 +26,7 @@ export default function CallRoom() {
   const sendTransportRef = useRef(null)
   const recvTransportRef = useRef(null)
   const producersRef = useRef({})
+  const remoteStreamsRef = useRef({})
   const localVideoRef = useRef(null)
   const chatEndRef = useRef(null)
 
@@ -47,32 +48,12 @@ export default function CallRoom() {
       socket.emit('join-session', { sessionId })
     })
 
-    socket.on('connect_error', (err) => {
-      setStatus('Connection failed: ' + err.message)
-    })
-
-    socket.on('peer-joined', ({ participants }) => {
-      setPeers(participants)
-      setStatus('In call ✅')
-    })
-
-    socket.on('peer-left', ({ participants }) => {
-      setPeers(participants)
-    })
-
-    socket.on('chat-message', (msg) => {
-      setMessages(prev => [...prev, msg])
-    })
-
-    socket.on('recording-status', ({ status: rs, url }) => {
-      setRecording(rs)
-    })
-
-    socket.on('session-ended', () => {
-      alert('Session ended by agent')
-      cleanup()
-      navigate('/')
-    })
+    socket.on('connect_error', (err) => setStatus('Connection failed: ' + err.message))
+    socket.on('peer-joined', ({ participants }) => { setPeers(participants); setStatus('In call ✅') })
+    socket.on('peer-left', ({ participants }) => setPeers(participants))
+    socket.on('chat-message', (msg) => setMessages(prev => [...prev, msg]))
+    socket.on('recording-status', ({ status: rs }) => setRecording(rs))
+    socket.on('session-ended', () => { alert('Session ended'); cleanup(); navigate('/') })
 
     socket.on('ms-new-producer', async ({ producerId, kind, socketId }) => {
       if (socketId !== socket.id) {
@@ -91,49 +72,38 @@ export default function CallRoom() {
 
   async function setupMediasoup(socket, stream) {
     const { rtpCapabilities } = await socketEmit(socket, 'ms-get-rtp-capabilities', { sessionId })
-
     const device = new mediasoupClient.Device()
     await device.load({ routerRtpCapabilities: rtpCapabilities })
     deviceRef.current = device
 
-    // Send transport
     const sendParams = await socketEmit(socket, 'ms-create-transport', { sessionId, direction: 'send' })
     const sendTransport = device.createSendTransport(sendParams)
     sendTransportRef.current = sendTransport
 
-    sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
-      try {
-        await socketEmit(socket, 'ms-connect-transport', { sessionId, direction: 'send', dtlsParameters })
-        callback()
-      } catch (err) { errback(err) }
+    sendTransport.on('connect', async ({ dtlsParameters }, cb, eb) => {
+      try { await socketEmit(socket, 'ms-connect-transport', { sessionId, direction: 'send', dtlsParameters }); cb() }
+      catch (err) { eb(err) }
     })
 
-    sendTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
-      try {
-        const { id } = await socketEmit(socket, 'ms-produce', { sessionId, kind, rtpParameters })
-        callback({ id })
-      } catch (err) { errback(err) }
+    sendTransport.on('produce', async ({ kind, rtpParameters }, cb, eb) => {
+      try { const { id } = await socketEmit(socket, 'ms-produce', { sessionId, kind, rtpParameters }); cb({ id }) }
+      catch (err) { eb(err) }
     })
 
-    // Recv transport
     const recvParams = await socketEmit(socket, 'ms-create-transport', { sessionId, direction: 'recv' })
     const recvTransport = device.createRecvTransport(recvParams)
     recvTransportRef.current = recvTransport
 
-    recvTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
-      try {
-        await socketEmit(socket, 'ms-connect-transport', { sessionId, direction: 'recv', dtlsParameters })
-        callback()
-      } catch (err) { errback(err) }
+    recvTransport.on('connect', async ({ dtlsParameters }, cb, eb) => {
+      try { await socketEmit(socket, 'ms-connect-transport', { sessionId, direction: 'recv', dtlsParameters }); cb() }
+      catch (err) { eb(err) }
     })
 
-    // Produce tracks
     const audioTrack = stream.getAudioTracks()[0]
     const videoTrack = stream.getVideoTracks()[0]
     if (audioTrack) producersRef.current.audio = await sendTransport.produce({ track: audioTrack })
     if (videoTrack) producersRef.current.video = await sendTransport.produce({ track: videoTrack })
 
-    // Consume existing producers
     const { producers } = await socketEmit(socket, 'ms-get-producers', { sessionId })
     for (const p of producers) {
       if (p.socketId !== socketRef.current.id) {
@@ -154,19 +124,15 @@ export default function CallRoom() {
       const params = await socketEmit(socket, 'ms-consume', {
         sessionId, producerId, rtpCapabilities: device.rtpCapabilities
       })
-
       const consumer = await recvTransport.consume(params)
 
-      setRemoteStreams(prev => {
-        const existing = prev[socketId]
-        if (existing) {
-          existing.addTrack(consumer.track)
-          return { ...prev, [socketId]: existing }
-        } else {
-          const newStream = new MediaStream([consumer.track])
-          return { ...prev, [socketId]: newStream }
-        }
-      })
+      // Same socketId ke tracks ek hi stream mein daalo
+      if (!remoteStreamsRef.current[socketId]) {
+        remoteStreamsRef.current[socketId] = new MediaStream()
+      }
+      remoteStreamsRef.current[socketId].addTrack(consumer.track)
+
+      setRemoteStreams({ ...remoteStreamsRef.current })
     } catch (err) {
       console.error('Consume error:', err)
     }
@@ -182,17 +148,15 @@ export default function CallRoom() {
   }
 
   function toggleAudio() {
-    const producer = producersRef.current.audio
-    if (!producer) return
-    if (audioMuted) { producer.resume(); setAudioMuted(false) }
-    else { producer.pause(); setAudioMuted(true) }
+    const p = producersRef.current.audio
+    if (!p) return
+    if (audioMuted) { p.resume(); setAudioMuted(false) } else { p.pause(); setAudioMuted(true) }
   }
 
   function toggleVideo() {
-    const producer = producersRef.current.video
-    if (!producer) return
-    if (videoOff) { producer.resume(); setVideoOff(false) }
-    else { producer.pause(); setVideoOff(true) }
+    const p = producersRef.current.video
+    if (!p) return
+    if (videoOff) { p.resume(); setVideoOff(false) } else { p.pause(); setVideoOff(true) }
   }
 
   function sendMessage() {
@@ -226,43 +190,35 @@ export default function CallRoom() {
     <div style={{ display: 'flex', height: '100vh', background: '#0f1117' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 12 }}>
 
-        {/* Status */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 13, color: '#9ca3af' }}>
             ⚡ {sessionId?.slice(0, 8)}... | {status} | {peers.length} participant(s)
           </span>
           {recording && (
-            <span style={{
-              fontSize: 12, padding: '2px 10px', borderRadius: 20,
-              background: recording === 'in-progress' ? '#7f1d1d' : '#166534',
-              color: recording === 'in-progress' ? '#fca5a5' : '#86efac'
-            }}>
+            <span style={{ fontSize: 12, padding: '2px 10px', borderRadius: 20, background: recording === 'in-progress' ? '#7f1d1d' : '#166534', color: recording === 'in-progress' ? '#fca5a5' : '#86efac' }}>
               {recording === 'in-progress' ? '🔴 Recording' : '✅ Ready'}
             </span>
           )}
         </div>
 
         {/* Video Grid */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
           
-          {/* Local video */}
+          {/* Local */}
           <div style={{ position: 'relative', background: '#1e2130', borderRadius: 12, overflow: 'hidden', minHeight: 200 }}>
-            <video ref={localVideoRef} autoPlay playsInline muted
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <span style={{ position: 'absolute', bottom: 8, left: 12, fontSize: 12, color: '#9ca3af', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: 8 }}>
+            <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <span style={{ position: 'absolute', bottom: 8, left: 12, fontSize: 12, color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: 8 }}>
               You ({role})
             </span>
           </div>
 
-          {/* Remote videos — one per socketId */}
-          {Object.entries(remoteStreams).map(([socketId, stream]) => (
+          {/* Remote — ek box per participant */}
+          {Object.entries(remoteStreams).map(([socketId, stream], i) => (
             <div key={socketId} style={{ position: 'relative', background: '#1e2130', borderRadius: 12, overflow: 'hidden', minHeight: 200 }}>
-              <video autoPlay playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                ref={el => { if (el && el.srcObject !== stream) el.srcObject = stream }}
-              />
-              <span style={{ position: 'absolute', bottom: 8, left: 12, fontSize: 12, color: '#9ca3af', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: 8 }}>
-                Remote
+              <video autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                ref={el => { if (el && el.srcObject !== stream) el.srcObject = stream }} />
+              <span style={{ position: 'absolute', bottom: 8, left: 12, fontSize: 12, color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: 8 }}>
+                Participant {i + 1}
               </span>
             </div>
           ))}
@@ -277,21 +233,13 @@ export default function CallRoom() {
             {videoOff ? '📵 Video On' : '📹 Video Off'}
           </button>
           {role === 'agent' && !recording && (
-            <button className="btn btn-danger" onClick={() => socketRef.current?.emit('recording-start', { sessionId })}>
-              🔴 Record
-            </button>
+            <button className="btn btn-danger" onClick={() => socketRef.current?.emit('recording-start', { sessionId })}>🔴 Record</button>
           )}
           {role === 'agent' && recording === 'in-progress' && (
-            <button className="btn btn-gray" onClick={() => socketRef.current?.emit('recording-stop', { sessionId })}>
-              ⏹ Stop Rec
-            </button>
+            <button className="btn btn-gray" onClick={() => socketRef.current?.emit('recording-stop', { sessionId })}>⏹ Stop</button>
           )}
-          {role === 'agent' && (
-            <button className="btn btn-danger" onClick={endSession}>📵 End Session</button>
-          )}
-          {role === 'customer' && (
-            <button className="btn btn-danger" onClick={() => { cleanup(); navigate('/') }}>Leave</button>
-          )}
+          {role === 'agent' && <button className="btn btn-danger" onClick={endSession}>📵 End Session</button>}
+          {role === 'customer' && <button className="btn btn-danger" onClick={() => { cleanup(); navigate('/') }}>Leave</button>}
         </div>
       </div>
 
