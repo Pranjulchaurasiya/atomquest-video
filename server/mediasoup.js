@@ -51,12 +51,19 @@ async function init(io, sessions, activePeers) {
       try {
         const router = routers[sessionId];
         const transport = await router.createWebRtcTransport({
-          listenIps: [{ ip: '0.0.0.0', announcedIp: process.env.ANNOUNCED_IP }],
-          enableUdp: true,
-          enableTcp: true,
-          preferUdp: false,
-          preferTcp: true,
-        });
+  listenIps: [{ ip: '0.0.0.0', announcedIp: process.env.ANNOUNCED_IP }],
+  enableUdp: true,
+  enableTcp: true,
+  preferUdp: true,
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ]
+});
 
         const key = `${socket.id}-${direction}`;
         transports[key] = transport;
