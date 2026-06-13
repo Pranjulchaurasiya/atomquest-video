@@ -54,7 +54,8 @@ async function init(io, sessions, activePeers) {
           listenIps: [{ ip: '0.0.0.0', announcedIp: process.env.ANNOUNCED_IP }],
           enableUdp: true,
           enableTcp: true,
-          preferUdp: true
+          preferUdp: false,
+          preferTcp: true,
         });
 
         const key = `${socket.id}-${direction}`;
