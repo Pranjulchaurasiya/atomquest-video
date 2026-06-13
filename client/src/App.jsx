@@ -18,9 +18,7 @@ export default function App() {
       <Route path="/dashboard" element={
         <PrivateRoute><AgentDashboard /></PrivateRoute>
       } />
-      <Route path="/call/:sessionId" element={
-        <PrivateRoute><CallRoom /></PrivateRoute>
-      } />
+      <Route path="/call/:sessionId" element={<CallRoom />} />
       <Route path="/admin" element={
         <PrivateRoute><AdminDashboard /></PrivateRoute>
       } />
